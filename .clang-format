@@ -1,0 +1,5 @@
+BinPackArguments: true
+BinPackParameters: true
+AllowAllArgumentsOnNextLine: true
+Cpp11BracedListStyle: false
+ColumnLimit: 200

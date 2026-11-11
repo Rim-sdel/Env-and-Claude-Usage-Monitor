@@ -1,0 +1,14 @@
+CompileFlags:
+  CompilationDatabase: .
+  Remove:
+    - -mlongcalls
+    - -mfix-esp32-psram-cache-*
+    - -mdisable-hardware-atomics
+    - -fno-tree-switch-conversion
+    - -fno-builtin-*
+    - -fstrict-volatile-bitfields
+    - -fno-jump-tables
+    - --target=*
+  Add:
+    - -Wno-unknown-warning-option
+    - -Wno-unused-command-line-argument

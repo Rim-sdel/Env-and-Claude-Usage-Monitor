@@ -1,0 +1,135 @@
+#include <Arduino.h>
+#include <U8g2lib.h>
+#include <Wire.h>
+
+#include "MHZ19.h"
+#include <Adafruit_BME280.h>
+#include <Adafruit_Sensor.h>
+
+// -- LCD monior --
+U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/U8X8_PIN_NONE);
+#define I2C_SDA 6
+#define I2C_SCL 7
+
+// --- MH-Z19 センサーの設定 ---
+MHZ19 myMHZ19;              // Constructor for library
+HardwareSerial mySerial(1); // (Uno example) create device to MH-Z19 serial
+#define RX_PIN 5            // Rx pin which the MHZ19 Tx pin is attached to
+#define TX_PIN 10           // Tx pin which the MHZ19 Rx pin is attached to
+#define BAUDRATE 9600       // Device to MH-Z19 Serial baudrate (should not be changed)
+
+unsigned long getDataTimer = 0;
+
+// -- BME280 --
+Adafruit_BME280 bme; // I2C
+
+void printSet(const uint8_t *FONT, int x, int y, const char *TEXT) {
+  u8g2.setFont(FONT);
+  u8g2.setCursor(x, y);
+  u8g2.print(TEXT);
+}
+
+void printSet(const uint8_t *FONT, int x, int y, int NUM) {
+  u8g2.setFont(FONT);
+  u8g2.setCursor(x, y);
+  u8g2.print(NUM);
+}
+
+void updateMonitor(int CO2, int TEMP, int HUM, int BARO) {
+
+  const uint8_t *HEAD = u8g2_font_5x7_tf;
+  const uint8_t *HEAD_S = u8g2_font_4x6_tf;
+  const uint8_t *NUM = u8g2_font_crox4h_tf;
+  const uint8_t *NUM_S = u8g2_font_crox2hb_tn;
+
+  int monitor_h = 64;
+  int monitor_w = 128;
+  int margin_h = 2;
+  int margin_w = 5;
+
+  int head_s_height = 48;
+  int under = monitor_h - margin_h;
+
+  u8g2.clearBuffer(); // 内部バッファをクリア
+
+  printSet(HEAD, 57, 5 + margin_h, "CO2");
+  printSet(NUM, 48, 30, CO2);
+  printSet(HEAD, 80, 30, "  ppm");
+
+  u8g2.drawHLine(margin_w, 38, monitor_w - margin_w * 2);
+
+  printSet(HEAD_S, 5, head_s_height, "TEMP");
+  printSet(NUM_S, 15, under, TEMP);
+  printSet(HEAD_S, 33, under, "\xb0"
+                              "C");
+
+  printSet(HEAD_S, 45, head_s_height, "HUM");
+  printSet(NUM_S, 55, under, HUM);
+  printSet(HEAD_S, 73, under, "%");
+
+  printSet(HEAD_S, 85, head_s_height, "BARO");
+  printSet(NUM_S, 91, under, BARO);
+
+  u8g2.sendBuffer(); // バッファの内容をディスプレイに転送
+}
+
+void setup() {
+  Serial.begin(9600); // Device to serial monitor feedback
+  while (!Serial)
+    ;
+
+  Serial.println("--- Booting... ---");
+
+  Wire.begin(I2C_SDA, I2C_SCL);
+  Serial.println("Wire OK");
+
+  // -- BME280 --
+  unsigned status = bme.begin(0x76);
+  if (!status) {
+    Serial.println("BME280 not found");
+    while (1)
+      ;
+  }
+
+  // -- monitor --
+  u8g2.begin();
+
+  // センサー通信開始
+  mySerial.begin(BAUDRATE, SERIAL_8N1, RX_PIN, TX_PIN); // (Uno example) device to MH-Z19 serial start
+  Serial.println("mySerial OK");
+
+  myMHZ19.begin(mySerial);   // *Serial(Stream) refence must be passed to library begin().
+  myMHZ19.autoCalibration(); // Turn auto calibration ON (OFF autoCalibration(false))
+
+  Serial.println("== Setup copleted! ==");
+}
+
+void loop() {
+  if (millis() - getDataTimer >= 5000) {
+    getDataTimer = millis();
+    Serial.println("--------------------");
+
+    int CO2;
+    CO2 = myMHZ19.getCO2();
+    Serial.print("CO2: ");
+    Serial.print(CO2);
+    Serial.println(" ppm");
+
+    int TEMP = bme.readTemperature();
+    Serial.print("Temp: ");
+    Serial.print(TEMP);
+    Serial.println(" °C");
+
+    int HUM = bme.readHumidity();
+    Serial.print("Hum: ");
+    Serial.print(HUM);
+    Serial.println(" %");
+
+    int BARO = bme.readPressure() / 100.0F;
+    Serial.print("Baro: ");
+    Serial.print(BARO);
+    Serial.println(" hPa");
+
+    updateMonitor(CO2, TEMP, HUM, BARO);
+  }
+}

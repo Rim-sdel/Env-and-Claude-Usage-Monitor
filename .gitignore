@@ -1,0 +1,10 @@
+.cache/
+.direnv/
+.pio/
+.platformio/
+
+.envrc
+
+test/
+secrets.h
+compile_commands.json

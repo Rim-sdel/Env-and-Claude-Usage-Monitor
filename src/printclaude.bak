@@ -1,0 +1,191 @@
+#include "globals.h"
+#include <fetch.h>
+#include <stdint.h>
+
+int barAreaL = 33;
+
+int barWidth = 90;
+int numX = barAreaL + 9;
+
+const uint8_t *cNUM = u8g2_font_profont17_tn;
+const uint8_t *cNUMs = u8g2_font_helvR08_tf;
+
+// =============================================
+//  ビットマップデータ（PROGMEM）
+// =============================================
+
+// clang-format off
+// 正規カニ 24x24
+static const unsigned char PROGMEM crab_24x24[] = {
+    //     0x70, 0x00, 0x0E, // row 0  (耳)
+    //     0x70, 0x00, 0x0E, // row 1
+    //     0x70, 0x00, 0x0E, // row 2
+    //     0xFC, 0xFF, 0x3F, // row 3  (体)
+    //     0xFC, 0xFF, 0x3F, // row 4
+    //     0xFC, 0xFF, 0x3F, // row 5
+    //     0x7C, 0x7E, 0x3E, // row 6  (目)
+    //     0x7C, 0x7E, 0x3E, // row 7
+    //     0xFC, 0xFF, 0x3F, // row 8  (体)
+    //     0xFC, 0xFF, 0x3F, // row 9
+    //     0xFC, 0xFF, 0x3F, // row 10
+    //     0xFC, 0xFF, 0x3F, // row 11
+    //     0xFC, 0xFF, 0x3F, // row 12
+    //     0xFC, 0xFF, 0x3F, // row 13
+    //     0x70, 0xE7, 0x0E, // row 14 (全脚)
+    //     0x70, 0xE7, 0x0E, // row 15
+    //     0x70, 0xE7, 0x0E, // row 16
+    //     0x70, 0xE7, 0x0E, // row 17
+    //     0x70, 0x00, 0x0E, // row 18 (外脚のみ)
+    //     0x70, 0x00, 0x0E, // row 19
+    //     0x00, 0x00, 0x00, // row 20
+    //     0x00, 0x00, 0x00, // row 21
+    //     0x00, 0x00, 0x00, // row 22
+    //     0x00, 0x00, 0x00, // row 23
+    0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00,
+    0xF0, 0xFF, 0x0F,
+    0xF0, 0xFF, 0x0F,
+    0xF0, 0xFC, 0x09,
+    0xF0, 0xFC, 0x09,
+    0xFE, 0xFF, 0x7F,
+    0xFE, 0xFF, 0x7F,
+    0xFE, 0xFF, 0x7F,
+    0xF0, 0xFF, 0x0F,
+    0xF0, 0xFF, 0x0F,
+    0xF0, 0xFF, 0x0F,
+    0xF0, 0xFF, 0x0F,
+    0xF0, 0xFF, 0x0F,
+    0x30, 0xC3, 0x0C,
+    0x30, 0xC3, 0x0C,
+    0x30, 0xC3, 0x0C,
+    0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00,
+};
+// clang-format on
+
+// 時計アイコン 5x5 (8bit幅にパディング)
+static const unsigned char PROGMEM icon_clock[] = {
+  // 0x0E, // .###.
+  // 0x15, // #.#.#
+  // 0x1D, // #.###
+  // 0x11, // #...#
+  // 0x0E, // .###.
+  0x1C, // row 0: ..███..
+  0x2A, // row 1: .█.█.█.
+  0x49, // row 2: █..█..█
+  0x59, // row 3: █..██.█
+  0x41, // row 4: █.....█
+  0x22, // row 5: .█...█.
+  0x1C, // row 6: ..███..
+};
+
+// カレンダーアイコン 5x5
+static const unsigned char PROGMEM icon_cal[] = {
+  // 0x0A, // .#.#.
+  // 0x1F, // #####
+  // 0x11, // #...#
+  // 0x15, // #.#.#
+  // 0x1F, // #####
+  0x22, // row 0: .█...█.
+  0x22, // row 1: .█...█.
+  0x7F, // row 2: ███████
+  0x41, // row 3: █.....█
+  0x59, // row 4: █..██.█
+  0x55, // row 5: █.█.█.█
+  0x7F, // row 6: ███████
+};
+// =============================================
+//  メイン画面（案A + アイコン + リセットカウントダウン）
+// =============================================
+
+void drawPct(int x, int y, int pct, const uint8_t *mainFont, const uint8_t *smallFont) {
+  char numBuf[6];
+  snprintf(numBuf, sizeof(numBuf), "%d", pct);
+  u8g2.setFont(mainFont);
+  u8g2.drawStr(x, y, numBuf);
+  int w = u8g2.getStrWidth(numBuf);
+  u8g2.setFont(smallFont);
+  u8g2.drawStr(x + w + 1, y, "%");
+}
+
+void drawClaude() {
+  u8g2.clearBuffer();
+
+  // ---- カニ 24x24（左、垂直中央寄り） ----
+  u8g2.drawXBM(2, 22, 24, 24, crab_24x24); // 2, 8, 24, 24
+
+  // ---- 縦線セパレータ（カニの右端 x=26 の外側） ----
+  // u8g2.drawVLine(28, 4, 56);
+
+  // ---- 5時間セッション ----
+  u8g2.drawXBM(barAreaL, 8, 7, 7, icon_clock);
+
+  if (fiveHourPct >= 0) {
+    drawPct(numX, 22, fiveHourPct, cNUM, cNUMs);
+    // char buf[8];
+    // snprintf(buf, sizeof(buf), "%d%%", fiveHourPct);
+    // u8g2.setFont(cNUM);          // NUM（環境モニターと同じ）
+    // u8g2.drawStr(numX, 22, buf); // 39, 18, buf
+
+    // プログレスバー: x=31, y=20, 幅90, 5
+    u8g2.drawFrame(barAreaL, 24, barWidth, 5);
+    if (fiveHourPct > 0) {
+      int fill = (fiveHourPct * 88) / 100;
+      u8g2.drawBox(barAreaL + 1, 25, fill, 3);
+    }
+
+    // リセット（バー右下）
+    String r = remainStr(fiveHourReset);
+    if (r.length() > 0) {
+      u8g2.setFont(u8g2_font_4x6_tf); // HEAD_S
+      int rw = u8g2.getStrWidth(r.c_str());
+      u8g2.drawStr(121 - rw, 34, r.c_str()); // 121 - rw, 30
+    }
+  } else {
+    u8g2.setFont(ui.HEAD); // HEAD（環境モニターと統一）
+    u8g2.drawStr(39, 18, "N/A");
+  }
+
+  // ---- 7日制限 ----
+  u8g2.drawXBM(barAreaL, 35, 7, 7, icon_cal); // 31, 33, 7, 7,
+
+  if (sevenDayPct >= 0) {
+    drawPct(numX, 50, sevenDayPct, cNUM, cNUMs);
+    // char buf[8];
+    // snprintf(buf, sizeof(buf), "%d%%", sevenDayPct);
+    // u8g2.setFont(cNUM);          // NUM
+    // u8g2.drawStr(numX, 50, buf); // 39, 48, buf
+
+    u8g2.drawFrame(barAreaL, 52, barWidth, 5); // 31, 50 , 90, 5
+    if (sevenDayPct > 0) {
+      int fill = (sevenDayPct * 88) / 100;
+      u8g2.drawBox(barAreaL + 1, 53, fill, 3); // 32, 51 , fill, 3
+    }
+
+    String r = remainStr(sevenDayReset);
+    if (r.length() > 0) {
+      u8g2.setFont(u8g2_font_4x6_tf); // HEAD_S
+      int rw = u8g2.getStrWidth(r.c_str());
+      u8g2.drawStr(121 - rw, 62, r.c_str()); // 121 -rw, 60,
+    }
+  } else {
+    u8g2.setFont(ui.HEAD); // HEAD
+    u8g2.drawStr(39, 48, "N/A");
+  }
+
+  u8g2.sendBuffer();
+}
+
+// プログレスバーを描く
+void drawBar(int x, int y, int w, int h, int pct) {
+  u8g2.drawFrame(x, y, w, h);
+  if (pct > 0) {
+    int fill = (pct * (w - 2)) / 100;
+    u8g2.drawBox(x + 1, y + 1, fill, h - 2);
+  }
+}
