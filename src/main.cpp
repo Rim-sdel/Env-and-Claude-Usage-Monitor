@@ -71,9 +71,9 @@ bool isEnvMonitor = true;
 bool isDrawEnvMonitor = true;
 
 void setup() {
-  Serial.begin(9600); // Device to serial monitor feedback
-  while (!Serial)
-    ;
+  Serial.begin(115200);     // Device to serial monitor feedback
+  Serial.setTxTimeoutMs(0); // シリアル未接続時用
+  delay(1000);
 
   Serial.println("== Booting... ==");
   pinMode(buttonPin, INPUT_PULLUP);
